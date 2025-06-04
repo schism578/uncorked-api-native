@@ -15,9 +15,6 @@
     "postdeploy": "npm run migrate:production"
   },
   "keywords": [],
-  "engines": {
-    "node": "14.13.0"
-  },
   "author": "",
   "license": "ISC",
   "dependencies": {
