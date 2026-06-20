@@ -41,7 +41,7 @@ const wineService = {
     },
     searchWine(knex, searchTerm, user_id) {
         return knex
-        .select('wine_type', 'winemaker', 'wine_name', 'varietal', 'vintage', 'region', 'tasting_notes', 'rating')
+        .select('wine_id', 'user_id', 'wine_type', 'winemaker', 'wine_name', 'varietal', 'vintage', 'region', 'tasting_notes', 'rating', 'img_url')
         .from('wine')
         .where('user_id', '=', user_id)
         .where('wine_type', 'LIKE', `%${searchTerm.wine_type || ''}%`)
