@@ -63,7 +63,46 @@ wineRouter
         res
           .status(201)
           .location(path.posix.join(req.originalUrl, `/${wine.wine_id}`))
-          .json(serializeWine(newWine))
+          .json(serializeWine(wine))
+      })
+      .catch(next)
+  })
+
+wineRouter
+  .route('/:user_id/:wine_id')
+  .all(requireAuth)
+  .all((req, res, next) => {
+    if (Number(req.params.user_id) !== req.user.user_id) {
+      return res.status(403).json({ error: { message: 'Forbidden' } })
+    }
+    next()
+  })
+  .patch(jsonParser, (req, res, next) => {
+    const knexInstance = req.app.get('db');
+    const { winemaker, wine_type, wine_name, varietal, vintage, region, tasting_notes, rating, img_url } = req.body
+    const updateFields = { winemaker, wine_type, wine_name, varietal, vintage, region, tasting_notes, rating, img_url }
+    Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key])
+
+    wineService.getById(knexInstance, req.params.wine_id)
+      .then(wine => {
+        if (!wine || wine.user_id !== req.user.user_id) {
+          return res.status(404).json({ error: { message: 'Wine not found' } })
+        }
+        return wineService.updateWine(knexInstance, req.params.wine_id, updateFields)
+          .then(() => wineService.getById(knexInstance, req.params.wine_id))
+          .then(updatedWine => res.json(serializeWine(updatedWine)))
+      })
+      .catch(next)
+  })
+  .delete((req, res, next) => {
+    const knexInstance = req.app.get('db');
+    wineService.getById(knexInstance, req.params.wine_id)
+      .then(wine => {
+        if (!wine || wine.user_id !== req.user.user_id) {
+          return res.status(404).json({ error: { message: 'Wine not found' } })
+        }
+        return wineService.deleteWine(knexInstance, req.params.wine_id)
+          .then(() => res.status(204).end())
       })
       .catch(next)
   })
