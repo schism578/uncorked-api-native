@@ -4,16 +4,28 @@ const wineService = require('../wine/wine-service')
 const { requireAuth } = require('../middleware/jwt-auth')
 const config = require('../config')
 const pairingAiRouter = express.Router()
+const jsonParser = express.json()
 
 const VALID_FOOD_TYPES = ['cheese', 'charcuterie', 'dish']
 
-function buildPrompt(wine) {
-  return `A user recorded this wine tasting memory:
+function buildPrompt(wine, options) {
+  const intro = `A user recorded this wine tasting memory:
 - Type: ${wine.wine_type}
 - Varietal: ${wine.varietal || 'unknown'}
 - Region: ${wine.region || 'unknown'}
 - Tasting notes: ${wine.tasting_notes || 'none recorded'}
-- Their rating: ${wine.rating || 'unrated'} out of 5
+- Their rating: ${wine.rating || 'unrated'} out of 5`
+
+  if (options && options.food_type) {
+    const count = options.count || 5
+    const seedClause = options.seed_name ? ` called "${options.seed_name}"` : ''
+    return `${intro}
+
+The user already paired this wine with a ${options.food_type}${seedClause}. Suggest ${count} more ${options.food_type} pairings for this wine that are similar in spirit, but distinct from each other and from${seedClause ? ` "${options.seed_name}"` : ' that pairing'}. Respond with ONLY a JSON array (no prose, no markdown fences), where each item has this exact shape:
+{"food_type": "${options.food_type}", "name": string, "reason": string, "recipe": {"ingredients": string[], "steps": string[]} (optional, only if food_type is "dish")}`
+  }
+
+  return `${intro}
 
 Suggest 3 to 5 food pairings for this wine, mixing cheese, charcuterie, and full dish suggestions where sensible. Respond with ONLY a JSON array (no prose, no markdown fences), where each item has this exact shape:
 {"food_type": "cheese" | "charcuterie" | "dish", "name": string, "reason": string, "recipe": {"ingredients": string[], "steps": string[]} (optional, only for "dish")}`
@@ -52,8 +64,11 @@ function parseSuggestions(text) {
 pairingAiRouter
   .route('/:wine_id/suggest')
   .all(requireAuth)
-  .post((req, res, next) => {
+  .post(jsonParser, (req, res, next) => {
     const knexInstance = req.app.get('db');
+    const { food_type, seed_name, count } = req.body || {}
+    const options = VALID_FOOD_TYPES.includes(food_type) ? { food_type, seed_name, count } : undefined
+
     wineService.getById(knexInstance, req.params.wine_id)
       .then(wine => {
         if (!wine) {
@@ -67,7 +82,7 @@ pairingAiRouter
         return client.messages.create({
           model: 'claude-sonnet-4-5',
           max_tokens: 1536,
-          messages: [{ role: 'user', content: buildPrompt(wine) }],
+          messages: [{ role: 'user', content: buildPrompt(wine, options) }],
         })
           .then(message => {
             console.log('pairing-suggest usage:', message.usage)
