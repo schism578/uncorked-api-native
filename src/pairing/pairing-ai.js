@@ -16,7 +16,7 @@ function buildPrompt(wine) {
 - Their rating: ${wine.rating || 'unrated'} out of 5
 
 Suggest 3 to 5 food pairings for this wine, mixing cheese, charcuterie, and full dish suggestions where sensible. Respond with ONLY a JSON array (no prose, no markdown fences), where each item has this exact shape:
-{"food_type": "cheese" | "charcuterie" | "dish", "name": string, "reason": string, "recipe_blurb": string (optional, only for "dish")}`
+{"food_type": "cheese" | "charcuterie" | "dish", "name": string, "reason": string, "recipe": {"ingredients": string[], "steps": string[]} (optional, only for "dish")}`
 }
 
 function stripMarkdownFences(text) {
@@ -36,12 +36,17 @@ function parseSuggestions(text) {
   }
   return parsed
     .filter(item => item && VALID_FOOD_TYPES.includes(item.food_type) && item.name)
-    .map(item => ({
-      food_type: item.food_type,
-      name: item.name,
-      reason: item.reason || '',
-      recipe_blurb: item.recipe_blurb || undefined,
-    }))
+    .map(item => {
+      const hasValidRecipe = item.recipe
+        && Array.isArray(item.recipe.ingredients)
+        && Array.isArray(item.recipe.steps)
+      return {
+        food_type: item.food_type,
+        name: item.name,
+        reason: item.reason || '',
+        recipe: hasValidRecipe ? { ingredients: item.recipe.ingredients, steps: item.recipe.steps } : undefined,
+      }
+    })
 }
 
 pairingAiRouter
@@ -61,7 +66,7 @@ pairingAiRouter
         const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
         return client.messages.create({
           model: 'claude-sonnet-4-5',
-          max_tokens: 1024,
+          max_tokens: 1536,
           messages: [{ role: 'user', content: buildPrompt(wine) }],
         })
           .then(message => {
