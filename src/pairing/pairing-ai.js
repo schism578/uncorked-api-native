@@ -19,10 +19,15 @@ Suggest 3 to 5 food pairings for this wine, mixing cheese, charcuterie, and full
 {"food_type": "cheese" | "charcuterie" | "dish", "name": string, "reason": string, "recipe_blurb": string (optional, only for "dish")}`
 }
 
+function stripMarkdownFences(text) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  return fenced ? fenced[1] : text
+}
+
 function parseSuggestions(text) {
   let parsed
   try {
-    parsed = JSON.parse(text)
+    parsed = JSON.parse(stripMarkdownFences(text.trim()))
   } catch (err) {
     throw new Error('Model did not return valid JSON')
   }
