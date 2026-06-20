@@ -64,7 +64,7 @@ describe('Auth Endpoints', function() {
                 .send(userInvalidPass)
                 .expect(400, { error: `incorrect username or password` })
             })
-            it(`responds 200 and JWT auth token using secret when valid credentials`, () => {
+            it(`responds 200 and a JWT auth token plus the user when valid credentials`, () => {
                 const userValidCreds = {
                   username: testUser.username,
                   password: testUser.password,
@@ -80,8 +80,11 @@ describe('Auth Endpoints', function() {
                 return supertest(app)
                   .post('/auth/login')
                   .send(userValidCreds)
-                  .expect(200, {
-                    authToken: expectedToken,
+                  .expect(200)
+                  .expect(res => {
+                    expect(res.body.authToken).to.eql(expectedToken)
+                    expect(res.body.user.user_id).to.eql(testUser.user_id)
+                    expect(res.body.user.username).to.eql(testUser.username)
                   })
               })
     })

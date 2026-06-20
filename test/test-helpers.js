@@ -164,8 +164,8 @@ function seedWines(db, wine) {
     .then(() =>
       // update the auto sequence to stay in sync
       db.raw(
-        `SELECT setval('wine_user_id_seq', ?)`,
-        [wine[wine.length - 1].user_id],
+        `SELECT setval('wine_wine_id_seq', ?)`,
+        [wine[wine.length - 1].wine_id],
       )
     )
 }

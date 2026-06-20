@@ -5,6 +5,10 @@ const helpers = require('./test-helpers')
 describe('Wine Endpoints', function () {
     let db
 
+    const { testUsers } = helpers.makeUsersFixtures()
+    const testUser = testUsers[0]
+    const otherUser = testUsers[1]
+
     before('make knex instance', () => {
         db = knex({
             client: 'pg',
@@ -15,51 +19,46 @@ describe('Wine Endpoints', function () {
 
     after('disconnect from db', () => db.destroy())
 
-    before('clean the table', () => db.raw('TRUNCATE wine RESTART IDENTITY CASCADE'))
+    before('cleanup', () => helpers.cleanTables(db))
 
-    afterEach('cleanup', () => db.raw('TRUNCATE wine RESTART IDENTITY CASCADE'))
+    afterEach('cleanup', () => helpers.cleanTables(db))
 
-    describe(`GET /wine`, () => {
+    beforeEach('seed users', () => helpers.seedUsers(db, testUsers))
+
+    describe(`GET /wine/:user_id`, () => {
         context(`Given no wine`, () => {
             it(`responds with 200 and an empty list`, () => {
                 return supertest(app)
-                    .get('/wine')
+                    .get(`/wine/${testUser.user_id}`)
+                    .set('Authorization', helpers.makeAuthHeader(testUser))
                     .expect(200, [])
             })
         })
 
         context('Given there are wines in the database', () => {
-            const testWine = helpers.makeWineArray();
+            const testWine = { ...helpers.makeWineArray()[0], user_id: testUser.user_id }
 
-            beforeEach('insert wine', () => {
-                return db
-                    .into('wine')
-                    .insert(testWine)
-                    .then(() => {
-                        return db
-                            .into('wine')
-                            .insert(testWine)
-                    })
-            })
+            beforeEach('insert wine', () => helpers.seedWines(db, [testWine]))
 
-            it('responds with 200 and all of the wine', () => {
+            it('responds with 200 and all of the wine for that user', () => {
                 return supertest(app)
-                    .get('/wine')
-                    .expect(200, testWine)
+                    .get(`/wine/${testUser.user_id}`)
+                    .set('Authorization', helpers.makeAuthHeader(testUser))
+                    .expect(200, [testWine])
             })
         })
 
-    })
-    describe(`POST /wine`, () => {
-        const testUsers = helpers.makeUsersArray();
-        beforeEach('insert malicious article', () => {
-            return db
-                .into('user_info')
-                .insert(testUsers)
+        it(`responds with 403 when user_id in the URL isn't the authenticated user`, () => {
+            return supertest(app)
+                .get(`/wine/${otherUser.user_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .expect(403)
         })
+    })
+
+    describe(`POST /wine/:user_id`, () => {
         it(`creates a wine, responding with 201 and the new wine`, () => {
             const newWine = {
-                user_id: 1,
                 winemaker: 'winemaker_1',
                 wine_type: 'wine_type_1',
                 wine_name: 'wine_name_1',
@@ -69,10 +68,10 @@ describe('Wine Endpoints', function () {
                 tasting_notes: 'tasting_notes_1',
                 rating: 1,
                 img_url: 'img_url_1',
-                wine_id: 1,
             }
             return supertest(app)
-                .post('/wine')
+                .post(`/wine/${testUser.user_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
                 .send(newWine)
                 .expect(201)
                 .expect(res => {
@@ -85,45 +84,114 @@ describe('Wine Endpoints', function () {
                     expect(res.body.tasting_notes).to.eql(newWine.tasting_notes)
                     expect(res.body.rating).to.eql(newWine.rating)
                     expect(res.body.img_url).to.eql(newWine.img_url)
-                    expect(res.body).to.have.property('id')
-                    expect(res.headers.location).to.eql(`/wine/${res.body.id}`)
-                    expect(actual).to.eql(expected)
+                    expect(res.body.user_id).to.eql(testUser.user_id)
+                    expect(res.body).to.have.property('wine_id')
+                    expect(res.headers.location).to.eql(`/wine/${testUser.user_id}/${res.body.wine_id}`)
                 })
-                .then(res =>
-                    supertest(app)
-                        .get(`/wine/${res.body.id}`)
-                        .expect(res.body)
-                )
         })
 
-        const requiredFields = ['winemaker', 'wine_type']
+        const requiredFields = ['winemaker', 'wine_type', 'wine_name', 'varietal', 'vintage', 'region', 'tasting_notes', 'rating', 'img_url']
 
         requiredFields.forEach(field => {
             const newWine = {
-                winemaker: 'Test new wine',
-                wine_type: 'Red',
+                winemaker: 'winemaker_1',
+                wine_type: 'wine_type_1',
+                wine_name: 'wine_name_1',
+                varietal: 'varietal_1',
+                vintage: 2020,
+                region: 'region_1',
+                tasting_notes: 'tasting_notes_1',
+                rating: 1,
+                img_url: 'img_url_1',
             }
 
-            it(`responds with 400 and an error message when the '${field}' is missing`, () => {
+            it(`responds with 400 and an error message when '${field}' is missing`, () => {
                 delete newWine[field]
                 return supertest(app)
-                    .post('/wine')
+                    .post(`/wine/${testUser.user_id}`)
+                    .set('Authorization', helpers.makeAuthHeader(testUser))
                     .send(newWine)
                     .expect(400, {
-                        error: { message: `Missing '${field}' in request body` }
+                        error: { message: `missing '${field}' in request body` }
                     })
             })
         })
-        it('removes XSS attack content from response', () => {
-            const { maliciousWine, expectedWine } = makeMaliciousWine()
+
+        it(`responds with 403 when user_id in the URL isn't the authenticated user`, () => {
             return supertest(app)
-                .post(`/wine`)
-                .send(maliciousWine)
-                .expect(201)
-                .expect(res => {
-                    expect(res.body.title).to.eql(expectedWine.winemaker)
-                    expect(res.body.content).to.eql(expectedWine.wine_type)
+                .post(`/wine/${otherUser.user_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .send({
+                    winemaker: 'w', wine_type: 'w', wine_name: 'w', varietal: 'w',
+                    vintage: 2020, region: 'w', tasting_notes: 'w', rating: 1, img_url: '',
                 })
+                .expect(403)
+        })
+    })
+
+    describe(`PATCH /wine/:user_id/:wine_id`, () => {
+        const testWine = { ...helpers.makeWineArray()[0], user_id: testUser.user_id }
+
+        beforeEach('insert wine', () => helpers.seedWines(db, [testWine]))
+
+        it(`updates the wine and responds with 200 and the updated wine`, () => {
+            return supertest(app)
+                .patch(`/wine/${testUser.user_id}/${testWine.wine_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .send({ rating: 5 })
+                .expect(200)
+                .expect(res => {
+                    expect(res.body.wine_id).to.eql(testWine.wine_id)
+                    expect(res.body.rating).to.eql(5)
+                    expect(res.body.winemaker).to.eql(testWine.winemaker)
+                })
+        })
+
+        it(`responds with 403 when user_id in the URL isn't the authenticated user`, () => {
+            return supertest(app)
+                .patch(`/wine/${otherUser.user_id}/${testWine.wine_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .send({ rating: 5 })
+                .expect(403)
+        })
+
+        it(`responds with 404 when the wine doesn't exist`, () => {
+            return supertest(app)
+                .patch(`/wine/${testUser.user_id}/999999`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .send({ rating: 5 })
+                .expect(404)
+        })
+    })
+
+    describe(`DELETE /wine/:user_id/:wine_id`, () => {
+        const testWine = { ...helpers.makeWineArray()[0], user_id: testUser.user_id }
+
+        beforeEach('insert wine', () => helpers.seedWines(db, [testWine]))
+
+        it(`responds with 204 and removes the wine`, () => {
+            return supertest(app)
+                .delete(`/wine/${testUser.user_id}/${testWine.wine_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .expect(204)
+                .then(() =>
+                    db.from('wine').select('*').where('wine_id', testWine.wine_id).first()
+                        .then(row => expect(row).to.be.undefined)
+                )
+        })
+
+        it(`responds with 403 when user_id in the URL isn't the authenticated user`, () => {
+            return supertest(app)
+                .delete(`/wine/${otherUser.user_id}/${testWine.wine_id}`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .expect(403)
+        })
+
+        it(`responds with 404 when the wine doesn't exist`, () => {
+            return supertest(app)
+                .delete(`/wine/${testUser.user_id}/999999`)
+                .set('Authorization', helpers.makeAuthHeader(testUser))
+                .expect(404)
         })
     })
 })

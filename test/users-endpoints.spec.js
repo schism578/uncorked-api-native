@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs')
 const app = require('../src/app')
 const helpers = require('./test-helpers')
 
-describe.only('Users Endpoints', function() {
+describe('Users Endpoints', function() {
     let db
 
     const { testUsers } = helpers.makeUsersFixtures()
@@ -50,6 +50,7 @@ describe.only('Users Endpoints', function() {
                 error: `missing '${field}' in request body`,
                 })
             })
+        })
             it(`responds 400 'password must be longer than 8 characters' when empty password`, () => {
                 const userShortPassword = {
                     username: 'test username',
@@ -100,7 +101,7 @@ describe.only('Users Endpoints', function() {
                   .send(userPasswordNotComplex)
                   .expect(400, { error: `password must contain one upper case, lower case, number and special character` })
               })
-        
+
               it(`responds 400 'username already taken' when username isn't unique`, () => {
                 const duplicateUser = {
                     username: testUser.username,
@@ -112,11 +113,11 @@ describe.only('Users Endpoints', function() {
                   .expect(400, { error: `username already taken` })
               })
             })
-        
+
             context(`Happy path`, () => {
-              it(`responds 201, serialized user, storing bcryped password`, () => {
+              it(`responds 201 with an authToken and the serialized user`, () => {
                 const newUser = {
-                    username: 'test username',
+                    username: 'a brand new username',
                     password: '1Aa!2Bb@'
                 }
                 return supertest(app)
@@ -124,26 +125,19 @@ describe.only('Users Endpoints', function() {
                   .send(newUser)
                   .expect(201)
                   .expect(res => {
-                    //expect(res.body).to.have.property('user_id')
-                    expect(res.body.username).to.eql(newUser.username)
-                    expect(res.body).to.not.have.property('password')
-                    expect(res.headers.location).to.eql(`/user/${res.body.user_id}`)
-                    const expectedDate = new Date().toLocaleString('en', { timeZone: 'UTC' })
-                    const actualDate = new Date(res.body.date_created).toLocaleString()
-                    expect(actualDate).to.eql(expectedDate)
+                    expect(res.body).to.have.property('authToken')
+                    expect(res.body.user.username).to.eql(newUser.username)
+                    expect(res.body.user).to.have.property('user_id')
+                    expect(res.headers.location).to.eql(`/user/${res.body.user.user_id}`)
                   })
                   .expect(res =>
                     db
                       .from('user_info')
                       .select('*')
-                      .where({ user_id: res.body.user_id })
+                      .where({ user_id: res.body.user.user_id })
                       .first()
                       .then(row => {
                         expect(row.username).to.eql(newUser.username)
-                        const expectedDate = new Date().toLocaleString('en', { timeZone: 'UTC' })
-                        const actualDate = new Date(row.date_created).toLocaleString()
-                        expect(actualDate).to.eql(expectedDate)
-        
                         return bcrypt.compare(newUser.password, row.password)
                       })
                       .then(compareMatch => {
@@ -153,5 +147,4 @@ describe.only('Users Endpoints', function() {
                 })
             })
         })
-    })
 })

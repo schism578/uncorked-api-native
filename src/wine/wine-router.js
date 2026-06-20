@@ -35,6 +35,12 @@ wineRouter
 wineRouter
   .route('/:user_id')
   .all(requireAuth)
+  .all((req, res, next) => {
+    if (Number(req.params.user_id) !== req.user.user_id) {
+      return res.status(403).json({ error: { message: 'Forbidden' } })
+    }
+    next()
+  })
   .get((req, res, next) => {
     const knexInstance = req.app.get('db');
     wineService.getAllWine(knexInstance, req.params.user_id)
