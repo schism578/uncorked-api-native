@@ -83,6 +83,31 @@ function makeWineArray() {
   ]
 }
 
+function makePairingArray() {
+  return [
+    {
+      pairing_id: 1,
+      wine_id: 1,
+      user_id: 1,
+      food_type: 'cheese',
+      name: 'pairing_name_1',
+      notes: 'pairing_notes_1',
+      img_url: 'pairing_img_1',
+      source: 'user_added',
+    },
+    {
+      pairing_id: 2,
+      wine_id: 1,
+      user_id: 1,
+      food_type: 'charcuterie',
+      name: 'pairing_name_2',
+      notes: 'pairing_notes_2',
+      img_url: 'pairing_img_2',
+      source: 'ai_suggested',
+    },
+  ]
+}
+
 function makeUsersFixtures() {
   const testUsers = makeUsersArray();
   return { testUsers }
@@ -93,12 +118,19 @@ function makeWineFixtures() {
   return { testWines }
 }
 
+function makePairingFixtures() {
+  const testPairings = makePairingArray();
+  return { testPairings }
+}
+
 function cleanTables(db) {
   return db.transaction(trx =>
     trx.raw(
       `TRUNCATE
+          food_pairing,
+          wine,
           user_info
-        `
+        CASCADE`
     )
       .then(() =>
         Promise.all([
@@ -138,6 +170,16 @@ function seedWines(db, wine) {
     )
 }
 
+function seedPairings(db, pairings) {
+  return db.into('food_pairing').insert(pairings)
+    .then(() =>
+      db.raw(
+        `SELECT setval('food_pairing_pairing_id_seq', ?)`,
+        [pairings[pairings.length - 1].pairing_id],
+      )
+    )
+}
+
 function makeAuthHeader(user, secret = process.env.JWT_SECRET) {
   const token = jwt.sign({ user_id: user.user_id }, secret, {
     subject: user.username,
@@ -149,10 +191,13 @@ function makeAuthHeader(user, secret = process.env.JWT_SECRET) {
 module.exports = {
   makeUsersArray,
   makeWineArray,
+  makePairingArray,
   makeUsersFixtures,
   makeWineFixtures,
+  makePairingFixtures,
   cleanTables,
   seedUsers,
   seedWines,
+  seedPairings,
   makeAuthHeader
 }

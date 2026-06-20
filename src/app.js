@@ -7,6 +7,8 @@ const { NODE_ENV } = require('./config')
 const userRouter = require('./user/user-router')
 const wineRouter = require('./wine/wine-router')
 const authRouter = require('./auth/auth-router')
+const pairingRouter = require('./pairing/pairing-router')
+const pairingAiRouter = require('./pairing/pairing-ai')
 
 const app = express()
 
@@ -25,6 +27,8 @@ app.get('/', (req, res) => {
 app.use('/auth', authRouter)
 app.use('/user', userRouter)
 app.use('/wine', wineRouter)
+app.use('/pairing', pairingAiRouter)
+app.use('/pairing', pairingRouter)
 
 app.use(function errorHandler(error, req, res, next) {
         let response
