@@ -3,7 +3,7 @@ const express = require('express')
 const wineService = require('./wine-service')
 const { requireAuth } = require('../middleware/jwt-auth')
 const wineRouter = express.Router()
-const jsonParser = express.json()
+const jsonParser = express.json({ limit: '8mb' })
 
 const serializeWine = wine => ({
   winemaker: wine.winemaker,
