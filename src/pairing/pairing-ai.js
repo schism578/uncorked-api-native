@@ -81,7 +81,7 @@ pairingAiRouter
         const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
         return client.messages.create({
           model: 'claude-sonnet-4-5',
-          max_tokens: 1536,
+          max_tokens: 4096,
           messages: [{ role: 'user', content: buildPrompt(wine, options) }],
         })
           .then(message => {
