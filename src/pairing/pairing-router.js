@@ -2,7 +2,7 @@ const express = require('express')
 const pairingService = require('./pairing-service')
 const { requireAuth } = require('../middleware/jwt-auth')
 const pairingRouter = express.Router()
-const jsonParser = express.json()
+const jsonParser = express.json({ limit: '8mb' })
 
 const serializePairing = pairing => ({
   pairing_id: pairing.pairing_id,
