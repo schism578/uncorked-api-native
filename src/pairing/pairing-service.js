@@ -33,6 +33,12 @@ const pairingService = {
             .where('pairing_id', id)
             .delete();
     },
+
+    updatePairing(knex, id, newPairingFields) {
+        return knex('food_pairing')
+            .where('pairing_id', id)
+            .update(newPairingFields);
+    },
 };
 
 module.exports = pairingService;

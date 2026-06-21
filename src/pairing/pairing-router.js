@@ -63,6 +63,23 @@ pairingRouter
 pairingRouter
   .route('/:user_id/:pairing_id')
   .all(requireAuth, requireOwnUser)
+  .patch(jsonParser, (req, res, next) => {
+    const knexInstance = req.app.get('db');
+    const { food_type, name, notes, img_url } = req.body
+    const updateFields = { food_type, name, notes, img_url }
+    Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key])
+
+    pairingService.getById(knexInstance, req.params.pairing_id)
+      .then(pairing => {
+        if (!pairing || pairing.user_id !== req.user.user_id) {
+          return res.status(404).json({ error: { message: 'Pairing not found' } })
+        }
+        return pairingService.updatePairing(knexInstance, req.params.pairing_id, updateFields)
+          .then(() => pairingService.getById(knexInstance, req.params.pairing_id))
+          .then(updatedPairing => res.json(serializePairing(updatedPairing)))
+      })
+      .catch(next)
+  })
   .delete((req, res, next) => {
     const knexInstance = req.app.get('db');
     pairingService.getById(knexInstance, req.params.pairing_id)
